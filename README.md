@@ -1,1 +1,63 @@
-# ArenaHub
+# 🎮 ArenaHub - Backend API
+
+O **ArenaHub** é uma plataforma desenvolvida para organizar e gerenciar campeonatos amadores de e-sports. Este repositório contém a API REST do backend, desenvolvida em **Python** com **FastAPI** e suporte dinâmico a múltiplos bancos de dados (**SQLite** para desenvolvimento e **NeonDB / PostgreSQL** para produção).
+
+---
+
+## 👥 1. Informações do Grupo e Projeto
+
+* **Projeto:** ArenaHub
+* **Instituição:** Universidade Tiradentes (UNIT)
+* **Curso:** Sistemas de Informação
+* **Disciplina:** Engenharia de Software (Semestre 2026.2)
+* **Professor:** Felipe dos Anjos
+* **Grupo:** Cauê e amigos
+
+### 👨‍💻 Integrantes do Grupo
+* Cauã Silva Souza Muniz
+* Daniel Batista Albuquerque
+* Danilo Vieira Fontes
+* Guilherme dos Santos Guimarães
+* Lucca Amaral Menendez
+* Vitor Rafael Laurentino
+
+---
+
+## 🚀 2. Tecnologias Utilizadas
+
+* **Linguagem:** Python 3.11 / 3.12
+* **Framework Web:** FastAPI
+* **Servidor ASGI:** Uvicorn
+* **ORM:** SQLAlchemy 2.0
+* **Validação de Dados:** Pydantic v2 (com suporte a `email-validator`)
+* **Banco de Dados (Desenvolvimento):** SQLite
+* **Banco de Dados (Produção):** NeonDB (Serverless PostgreSQL)
+* **Gerenciamento de Dependências:** `pip`
+
+---
+
+## 📌 3. Requisitos Atendidos
+
+| Código | Descrição do Requisito Funcional | Status |
+| :--- | :--- | :---: |
+| **RF01** | O sistema deve permitir o cadastro e login de usuários | ⚙️ Implementado |
+| **RF02** | O sistema deve permitir o cadastro de equipes e campeonatos | ⚙️ Implementado |
+| **RF03** | O sistema deve gerar partidas, tabelas ou chaveamentos do torneio | 🛠️ Em progresso |
+| **RF04** | O sistema deve registrar resultados e atualizar a classificação automaticamente | 🛠️ Em progresso |
+
+---
+
+## 📂 4. Estrutura do Projeto
+
+```text
+Backend/
+├── app/
+│   ├── __init__.py
+│   ├── database.py    # Conexão com SQLite / NeonDB
+│   ├── models.py      # Modelos SQLAlchemy (Banco de dados)
+│   ├── schemas.py     # Schemas Pydantic (Validação das APIs)
+│   └── main.py        # Rotas da aplicação (FastAPI)
+├── .env.example       # Modelo das variáveis de ambiente
+├── .gitignore         # Arquivos ignorados pelo Git
+├── README.md          # Documentação do backend
+└── requirements.txt   # Lista de dependências do projeto
