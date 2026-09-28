@@ -1,5 +1,12 @@
 node_modules/
-dist/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
 .env
 .env.local
 *.log
+
+# Gerados automaticamente pelo "next dev" (instruções para ferramentas de IA)
+AGENTS.md
+CLAUDE.md
