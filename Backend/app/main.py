@@ -2,17 +2,21 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from .database import engine, Base, get_db
+from .database import engine, get_db
 from . import models, schemas
 
 # Cria as tabelas na inicialização (SQLite local ou NeonDB)
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
     title="ArenaHub API",
     description="Backend para gerenciamento de campeonatos amadores de e-sports.",
     version="1.0.0"
 )
+
+@app.get("/health/db")
+def database_health(db: Session = Depends(get_db)):
+    from sqlalchemy import text
+    db.execute(text("SELECT 1"))
+    return {"status": "ok", "database": engine.url.get_backend_name()}
 
 @app.get("/")
 def read_root():
