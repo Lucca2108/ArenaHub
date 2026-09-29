@@ -1,0 +1,33 @@
+# Ambiente Virtual
+venv/
+env/
+ENV/
+.venv/
+
+# Banco de dados local (SQLite)
+*.db
+*.sqlite3
+*.sqlite
+arenahub_dev.db
+
+# Configurações e Segredos
+.env
+.env.local
+.env.*.local
+
+# Arquivos compilados e cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+
+# VS Code / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
