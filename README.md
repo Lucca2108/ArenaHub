@@ -34,6 +34,18 @@ O **ArenaHub** é uma plataforma desenvolvida para organizar e gerenciar campeon
 * **Banco de Dados (Produção):** NeonDB (Serverless PostgreSQL)
 * **Gerenciamento de Dependências:** `pip`
 
+### Banco de dados real
+
+O banco de produção é PostgreSQL (recomendado: Neon). Para configurar:
+
+1. Crie um projeto PostgreSQL no Neon e copie a URL de conexão.
+2. Em `Backend`, copie `.env.example` para `.env` e preencha `DATABASE_URL` com a URL real.
+3. Instale as dependências: `pip install -r requirements.txt`.
+4. Execute as migrações: `alembic upgrade head`.
+5. Inicie a API: `uvicorn app.main:app --reload`.
+
+O endpoint `GET /health/db` testa a conexão. O frontend deve ser iniciado com `NEXT_PUBLIC_DATA_MODE=api`; sem essa variável ele continua usando dados demo no navegador.
+
 ---
 
 ## 📌 3. Requisitos Atendidos

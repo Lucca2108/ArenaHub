@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
 import { BrandMark } from '@/components/layout/BrandMark';
 
-export default function PublicHome() {
+export default function CampeonatosPage() {
   const [busca, setBusca] = useState('');
 
   const campeonatosMock = [
@@ -58,7 +58,6 @@ export default function PublicHome() {
 
       <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         
-        {/* NAVBAR SUPERIOR */}
         <header style={{
           borderBottom: '1px solid #1e293b',
           backgroundColor: 'rgba(15, 20, 30, 0.9)',
@@ -74,8 +73,8 @@ export default function PublicHome() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
             <BrandMark />
             <nav style={{ display: 'flex', gap: '24px', fontSize: '14px', fontWeight: 500, color: '#94a3b8' }}>
-              <Link href="/" style={{ color: '#fff', textDecoration: 'none' }}>Início</Link>
-              <Link href="/campeonatos" style={{ color: '#94a3b8', textDecoration: 'none' }}>Campeonatos</Link>
+              <Link href="/" style={{ color: '#94a3b8', textDecoration: 'none' }}>Início</Link>
+              <Link href="/campeonatos" style={{ color: '#fff', textDecoration: 'none' }}>Campeonatos</Link>
               <Link href="/jogos" style={{ color: '#94a3b8', textDecoration: 'none' }}>Jogos</Link>
               <Link href="/times" style={{ color: '#94a3b8', textDecoration: 'none' }}>Times</Link>
               <Link href="/hub" style={{ color: '#94a3b8', textDecoration: 'none' }}>Hub do Jogador</Link>
@@ -102,7 +101,6 @@ export default function PublicHome() {
           </div>
         </header>
 
-        {/* CONTEÚDO */}
         <main style={{ padding: '48px 32px 64px 32px', maxWidth: '1300px', margin: '0 auto', width: '100%', flex: 1 }}>
           
           <motion.div 
@@ -116,7 +114,7 @@ export default function PublicHome() {
                 — COMPETIÇÕES
               </div>
               <h1 style={{ fontSize: '30px', fontWeight: 800, color: '#fff', marginBottom: '8px', letterSpacing: '-0.5px' }}>
-                Campeonatos em Destaque
+                Todos os Campeonatos
               </h1>
               <p style={{ color: '#94a3b8', fontSize: '14px' }}>
                 Explora os torneios ativos, consulta regulamentos e acompanha as chaves de eliminatórias.
