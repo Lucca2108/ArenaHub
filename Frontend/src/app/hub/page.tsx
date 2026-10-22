@@ -62,7 +62,7 @@ export default function HubPage() {
   return (
     <main className="public-shell">
       <Background />
-      <header className="public-header"><BrandMark /><nav className="public-nav"><Link href="/hub">Hub</Link><Link href="/campeonatos">Campeonatos</Link><Link href="/hub/equipes">Minhas equipes</Link><Link href="/hub/perfil">Perfil</Link></nav><button className="account-button" onClick={sair}><LogOut size={16} /> Sair</button></header>
+      <header className="public-header"><BrandMark /><nav className="public-nav"><Link href="/hub">Hub</Link><Link href="/campeonatos">Campeonatos</Link><Link href="/hub/equipes">Minhas equipes</Link><Link href="/hub/convites">Convites</Link><Link href="/hub/perfil">Perfil</Link></nav><button className="account-button" onClick={sair}><LogOut size={16} /> Sair</button></header>
       <section className="hub-content">
         <div className="hub-hero"><div><span className="eyebrow">PORTAL DO ATLETA</span><h1>Bem-vindo, <strong>{user?.nickname || user?.nome || 'atleta'}</strong>.</h1><p>Acompanhe suas equipes, campeonatos e próximas partidas em um só lugar.</p></div><Button icon={Plus} onClick={() => setTeamForm(true)}>Criar equipe</Button></div>
         {error && <div className="hub-error">{error}</div>}

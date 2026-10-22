@@ -343,6 +343,17 @@ export const mockApi: Api = {
       const id = usuarioLogadoId()
       return copia(carregarBanco().teams.filter((team) => team.capitao_id === id))
     },
+    async invites() {
+      await esperar()
+      return []
+    },
+    async declineInvite() {
+      await esperar()
+    },
+    async acceptReceivedInvite() {
+      await esperar()
+      throw new ApiError('Nenhum convite pendente.', 404)
+    },
     async tournaments() {
       await esperar()
       const db = carregarBanco()

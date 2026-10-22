@@ -37,6 +37,30 @@ class UserCreate(BaseModel):
     role: Optional[str] = "jogador"
 
 
+class AdminAthleteCreate(BaseModel):
+    nome: str = Field(min_length=2, max_length=120)
+    nickname: str = Field(min_length=2, max_length=40)
+    email: EmailStr
+
+
+class AdminTeamCreate(BaseModel):
+    nome: str = Field(min_length=1, max_length=80)
+    tag: Optional[str] = Field(default=None, max_length=8)
+    cor: str = "#00f0ff"
+    capitao_user_id: Optional[int] = None
+    novo_capitao: Optional[AdminAthleteCreate] = None
+
+
+class AdminTeamCreateResponse(BaseModel):
+    team: "TeamResponse"
+    activation_token: Optional[str] = None
+    activation_expires_at: Optional[datetime] = None
+
+
+class AccountActivation(BaseModel):
+    senha: str = Field(min_length=8, max_length=128)
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,6 +90,20 @@ class TeamMemberResponse(BaseModel):
 
 class TeamInviteResponse(TeamMemberResponse):
     invite_token: str
+
+
+class ReceivedInviteResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    team_id: int
+    team_nome: str
+    team_tag: str
+    team_cor: str
+    capitao: str
+    nickname: str
+    status: str
+    created_at: datetime
 
 
 class TeamMemberInvite(BaseModel):

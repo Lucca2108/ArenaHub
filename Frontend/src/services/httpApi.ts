@@ -1,4 +1,4 @@
-import type { Api, Match, Team, Tournament, User, TeamMember } from '@/types'
+import type { Api, Match, Team, Tournament, User, TeamMember, ReceivedInvite } from '@/types'
 import { API_BASE } from './config'
 import { ApiError } from './errors'
 import { clearSession, getSession } from './session'
@@ -107,6 +107,15 @@ export const httpApi: Api = {
     async teams() {
       const lista = await request<Team[]>('/me/teams')
       return lista.map(completarEquipe)
+    },
+    invites() {
+      return request<ReceivedInvite[]>('/me/invites')
+    },
+    declineInvite(memberId) {
+      return request(`/me/invites/${memberId}`, 'DELETE')
+    },
+    acceptReceivedInvite(memberId) {
+      return request<TeamMember>(`/me/invites/${memberId}/accept`, 'POST')
     },
     tournaments() {
       return request<Tournament[]>('/me/tournaments')

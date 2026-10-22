@@ -22,6 +22,9 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     senha_hash = Column(String, nullable=False)
     role = Column(String, default=UserRole.JOGADOR)
+    account_status = Column(String, nullable=False, default="ATIVO", server_default="ATIVO")
+    activation_token = Column(String, unique=True, index=True, nullable=True)
+    activation_expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

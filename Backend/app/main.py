@@ -188,6 +188,8 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == credentials.email).first()
     if not user or not verify_password(credentials.senha, user.senha_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha inválidos.")
+    if user.account_status != "ATIVO":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Ative sua conta antes de fazer login.")
     return {"access_token": create_access_token(user), "token_type": "bearer", "user": user}
 
 
@@ -209,6 +211,79 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="E-mail ou nickname ja cadastrado.") from exc
     db.refresh(new_user)
     return new_user
+
+
+@app.get("/admin/athletes", response_model=List[schemas.UserResponse])
+def list_admin_athletes(search: Optional[str] = None, db: Session = Depends(get_db), user: models.User = Depends(require_organizer)):
+    query = db.query(models.User).filter(models.User.role == "jogador")
+    if search:
+        term = f"%{search.strip().lower()}%"
+        query = query.filter(func.lower(models.User.nome).like(term) | func.lower(models.User.nickname).like(term) | func.lower(models.User.email).like(term))
+    return query.order_by(func.lower(models.User.nome)).all()
+
+
+@app.post("/admin/athletes", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
+def create_admin_athlete(payload: schemas.AdminAthleteCreate, db: Session = Depends(get_db), user: models.User = Depends(require_organizer)):
+    if db.query(models.User.id).filter(func.lower(models.User.email) == str(payload.email).lower()).first():
+        raise HTTPException(status_code=409, detail="E-mail já cadastrado.")
+    if db.query(models.User.id).filter(func.lower(models.User.nickname) == payload.nickname.strip().lower()).first():
+        raise HTTPException(status_code=409, detail="Nickname já cadastrado.")
+    athlete = models.User(nome=payload.nome.strip(), nickname=payload.nickname.strip(), email=payload.email, senha_hash=hash_password(secrets.token_urlsafe(32)), role="jogador", account_status="PENDENTE", activation_token=secrets.token_urlsafe(32), activation_expires_at=datetime.utcnow() + timedelta(days=7))
+    db.add(athlete)
+    db.commit()
+    db.refresh(athlete)
+    return athlete
+
+
+@app.post("/admin/teams", response_model=schemas.AdminTeamCreateResponse, status_code=status.HTTP_201_CREATED)
+def create_admin_team(payload: schemas.AdminTeamCreate, db: Session = Depends(get_db), user: models.User = Depends(require_organizer)):
+    nome = payload.nome.strip()
+    if _team_name_taken(db, nome):
+        raise HTTPException(status_code=409, detail="Já existe uma equipe com esse nome.")
+    activation_token = None
+    activation_expires_at = None
+    if payload.capitao_user_id:
+        captain = db.query(models.User).filter(models.User.id == payload.capitao_user_id, models.User.role == "jogador").first()
+        if not captain:
+            raise HTTPException(status_code=404, detail="Atleta não encontrado.")
+    elif payload.novo_capitao:
+        data = payload.novo_capitao
+        if db.query(models.User.id).filter(func.lower(models.User.email) == str(data.email).lower()).first():
+            raise HTTPException(status_code=409, detail="E-mail já cadastrado; selecione o atleta existente.")
+        if db.query(models.User.id).filter(func.lower(models.User.nickname) == data.nickname.strip().lower()).first():
+            raise HTTPException(status_code=409, detail="Nickname já cadastrado; selecione o atleta existente.")
+        activation_token = secrets.token_urlsafe(32)
+        activation_expires_at = datetime.utcnow() + timedelta(days=7)
+        captain = models.User(nome=data.nome.strip(), nickname=data.nickname.strip(), email=data.email, senha_hash=hash_password(secrets.token_urlsafe(32)), role="jogador", account_status="PENDENTE", activation_token=activation_token, activation_expires_at=activation_expires_at)
+        db.add(captain)
+        db.flush()
+    else:
+        raise HTTPException(status_code=400, detail="Informe um atleta existente ou os dados de um novo atleta.")
+    team = models.Team(nome=nome, tag=(payload.tag or _make_tag(nome)).strip().upper(), cor=payload.cor, capitao=captain.nickname or captain.nome, capitao_id=captain.id, jogadores=[captain.nickname or captain.nome])
+    team.members.append(models.TeamMember(user=captain, nickname=captain.nickname or captain.nome, email=captain.email, papel="CAPITAO", status="ATIVO"))
+    db.add(team)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Não foi possível criar a equipe com este capitão.") from exc
+    db.refresh(team)
+    return {"team": team, "activation_token": activation_token, "activation_expires_at": activation_expires_at}
+
+
+@app.post("/account-activations/{activation_token}", response_model=schemas.LoginResponse)
+def activate_account(activation_token: str, payload: schemas.AccountActivation, db: Session = Depends(get_db)):
+    athlete = db.query(models.User).filter(models.User.activation_token == activation_token, models.User.account_status == "PENDENTE").first()
+    if not athlete:
+        raise HTTPException(status_code=404, detail="Convite de ativação inválido.")
+    if not athlete.activation_expires_at or athlete.activation_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=410, detail="Convite de ativação expirado.")
+    athlete.senha_hash = hash_password(payload.senha)
+    athlete.account_status = "ATIVO"
+    athlete.activation_token = None
+    athlete.activation_expires_at = None
+    db.commit()
+    return {"access_token": create_access_token(athlete), "token_type": "bearer", "user": athlete}
 
 
 @app.get("/me", response_model=schemas.UserResponse)
@@ -364,6 +439,8 @@ def invite_team_member(team_id: int, payload: schemas.TeamMemberInvite, db: Sess
         target = db.query(models.User).filter(func.lower(models.User.email) == str(payload.email).lower()).first()
     if not target:
         target = db.query(models.User).filter(func.lower(models.User.nickname) == nickname.lower()).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Atleta não encontrado. O convite só pode ser enviado a uma conta cadastrada.")
     if target and target.id == team.capitao_id:
         raise HTTPException(status_code=400, detail="Este atleta já é o capitão da equipe.")
     if target and db.query(models.TeamMember.id).filter(models.TeamMember.team_id == team.id, models.TeamMember.user_id == target.id).first():
@@ -381,6 +458,61 @@ def invite_team_member(team_id: int, payload: schemas.TeamMemberInvite, db: Sess
     db.commit()
     db.refresh(member)
     return member
+
+
+@app.get("/me/invites", response_model=List[schemas.ReceivedInviteResponse])
+def list_received_invites(db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    invites = (
+        db.query(models.TeamMember, models.Team)
+        .join(models.Team, models.Team.id == models.TeamMember.team_id)
+        .filter(
+            models.TeamMember.user_id == user.id,
+            models.TeamMember.status == "CONVITE_ENVIADO",
+            models.TeamMember.invite_token.isnot(None),
+        )
+        .order_by(models.TeamMember.created_at.desc())
+        .all()
+    )
+    return [
+        schemas.ReceivedInviteResponse(
+            id=member.id,
+            team_id=team.id,
+            team_nome=team.nome,
+            team_tag=team.tag or "",
+            team_cor=team.cor,
+            capitao=team.capitao,
+            nickname=member.nickname,
+            status=member.status,
+            created_at=member.created_at,
+        )
+        for member, team in invites
+    ]
+
+
+@app.delete("/me/invites/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+def decline_received_invite(member_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    member = db.query(models.TeamMember).filter(
+        models.TeamMember.id == member_id,
+        models.TeamMember.user_id == user.id,
+        models.TeamMember.status == "CONVITE_ENVIADO",
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Convite não encontrado.")
+    db.delete(member)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/me/invites/{member_id}/accept", response_model=schemas.TeamMemberResponse)
+def accept_received_invite(member_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    member = db.query(models.TeamMember).filter(
+        models.TeamMember.id == member_id,
+        models.TeamMember.user_id == user.id,
+        models.TeamMember.status == "CONVITE_ENVIADO",
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Convite não encontrado ou não pertence a esta conta.")
+    return accept_team_invite(member.invite_token, db, user)
 
 
 @app.post("/team-invites/{invite_token}/accept", response_model=schemas.TeamMemberResponse)

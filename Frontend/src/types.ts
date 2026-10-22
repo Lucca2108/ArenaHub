@@ -45,6 +45,18 @@ export interface TeamMember {
   invite_token?: string | null
 }
 
+export interface ReceivedInvite {
+  id: number
+  team_id: number
+  team_nome: string
+  team_tag: string
+  team_cor: string
+  capitao: string
+  nickname: string
+  status: string
+  created_at: string
+}
+
 export interface Tournament {
   id: number
   nome: string
@@ -135,6 +147,9 @@ export interface Api {
   }
   athlete: {
     teams(): Promise<Team[]>
+    invites(): Promise<ReceivedInvite[]>
+    declineInvite(memberId: number): Promise<void>
+    acceptReceivedInvite(memberId: number): Promise<TeamMember>
     tournaments(): Promise<Tournament[]>
     matches(): Promise<Match[]>
     inviteMember(teamId: number, dados: { nickname: string; email?: string }): Promise<TeamMember>
