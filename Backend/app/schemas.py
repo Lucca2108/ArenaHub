@@ -31,6 +31,7 @@ DateTimeOut = Annotated[Optional[datetime], PlainSerializer(_to_iso_utc, return_
 # ---------- User ----------
 class UserCreate(BaseModel):
     nome: str
+    nickname: str = Field(min_length=2, max_length=40)
     email: EmailStr
     senha: str
     role: Optional[str] = "jogador"
@@ -41,8 +42,35 @@ class UserResponse(BaseModel):
 
     id: int
     nome: str
+    nickname: Optional[str] = None
     email: EmailStr
     role: str
+
+
+class UserUpdate(BaseModel):
+    nome: Optional[str] = None
+    nickname: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class TeamMemberResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: Optional[int] = None
+    nickname: str
+    email: Optional[EmailStr] = None
+    papel: str
+    status: str
+
+
+class TeamInviteResponse(TeamMemberResponse):
+    invite_token: str
+
+
+class TeamMemberInvite(BaseModel):
+    nickname: str = Field(min_length=2, max_length=40)
+    email: Optional[EmailStr] = None
 
 
 class LoginRequest(BaseModel):
@@ -85,6 +113,7 @@ class TeamResponse(BaseModel):
     capitao: str
     jogadores: list[str]
     capitao_id: Optional[int] = None
+    members: list[TeamMemberResponse] = Field(default_factory=list)
 
 
 # ---------- Tournament ----------

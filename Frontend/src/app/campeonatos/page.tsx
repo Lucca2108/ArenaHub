@@ -5,29 +5,26 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
 import { BrandMark } from '@/components/layout/BrandMark';
+import { api } from '@/services/api';
 
 export default function CampeonatosPage() {
   const [busca, setBusca] = useState('');
-  const [campeonatos, setCampeonatos] = useState([]);
+  const [campeonatos, setCampeonatos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchCampeonatos() {
       try {
-        const response = await fetch('http://localhost:8000/tournaments');
-        if (response.ok) {
-          const data = await response.json();
-          // Mapeia os dados vindos do banco para o formato visual dos cards
-          const formatados = data.map((item: any) => ({
-            id: item.id,
-            titulo: item.nome,
-            subtitulo: item.descricao || 'ArenaHub Oficial',
-            jogo: item.jogo || 'VALORANT',
-            status: item.status || 'EM ANDAMENTO',
-            premiacao: item.premiacao || '$ 10.000',
-          }));
-          setCampeonatos(formatados);
-        }
+        const data = await api.tournaments.list();
+        const formatados = data.map((item) => ({
+          id: item.id,
+          titulo: item.nome,
+          subtitulo: item.descricao,
+          jogo: item.jogo,
+          status: item.status,
+          premiacao: item.premiacao,
+        }));
+        setCampeonatos(formatados);
       } catch (error) {
         console.error('Erro ao buscar campeonatos do backend:', error);
       } finally {

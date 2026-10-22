@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
 import { BrandMark } from '@/components/layout/BrandMark';
+import { setSession } from '@/services/session';
 
 export default function UserLoginPage() {
   const router = useRouter();
@@ -13,6 +14,8 @@ export default function UserLoginPage() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [nome, setNome] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [confirmacao, setConfirmacao] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,12 +25,15 @@ export default function UserLoginPage() {
     setLoading(true);
 
     try {
-      const endpoint = isLogin ? 'http://localhost:8000/auth/login' : 'http://localhost:8000/users';
+      if (!isLogin && senha !== confirmacao) throw new Error('As senhas não coincidem.');
+      if (!isLogin && nickname.trim().length < 2) throw new Error('Informe um nickname válido.');
+      const endpoint = isLogin ? '/api/auth/login' : '/api/users';
       
       const payload = isLogin 
-        ? { username: email, password: senha }
+        ? { email, senha }
         : { 
-            nome: nome || email.split('@')[0], 
+            nome: nome.trim(),
+            nickname: nickname.trim(),
             email: email, 
             senha: senha, 
             role: 'jogador' 
@@ -55,10 +61,22 @@ export default function UserLoginPage() {
         throw new Error(detailMsg);
       }
 
-      localStorage.setItem('arena_user_logged', 'true');
-      localStorage.setItem('arena_user_name', nome || email.split('@')[0] || 'Jogador');
+      let dadosResposta = await response.json();
+      if (!isLogin) {
+        const loginResponse = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, senha }),
+        });
+        if (!loginResponse.ok) throw new Error('Conta criada, mas não foi possível iniciar a sessão.');
+        dadosResposta = await loginResponse.json();
+      }
+      if (dadosResposta.access_token && dadosResposta.user) {
+        setSession({ token: dadosResposta.access_token, user: dadosResposta.user });
+      }
       
-      router.push('/hub');
+      const destino = dadosResposta.user?.role === 'organizador' ? '/admin' : '/hub';
+      router.push(destino);
     } catch (err: any) {
       setError(err.message || 'Erro de ligação à API.');
     } finally {
@@ -188,11 +206,11 @@ export default function UserLoginPage() {
               {!isLogin && (
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Nickname / Nome
+                    Nome completo
                   </label>
                   <input
                     type="text"
-                    placeholder="Seu nick nos jogos"
+                    placeholder="Seu nome completo"
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
                     style={{
@@ -206,6 +224,22 @@ export default function UserLoginPage() {
                       outline: 'none',
                       boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
                     }}
+                  />
+                </div>
+              )}
+
+              {!isLogin && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Nickname
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Seu nick nos jogos"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    style={{ width: '100%', backgroundColor: '#0b0e14', border: '1px solid #1e293b', borderRadius: '10px', padding: '12px 14px', fontSize: '14px', color: '#fff', outline: 'none' }}
                   />
                 </div>
               )}
@@ -233,6 +267,22 @@ export default function UserLoginPage() {
                   }}
                 />
               </div>
+
+              {!isLogin && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Confirmar senha
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Repita sua senha"
+                    value={confirmacao}
+                    onChange={(e) => setConfirmacao(e.target.value)}
+                    style={{ width: '100%', backgroundColor: '#0b0e14', border: '1px solid #1e293b', borderRadius: '10px', padding: '12px 14px', fontSize: '14px', color: '#fff', outline: 'none' }}
+                  />
+                </div>
+              )}
 
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>

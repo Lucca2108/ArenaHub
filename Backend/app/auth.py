@@ -42,6 +42,10 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise error
     return user
 
+
+def require_user(user: models.User = Depends(get_current_user)) -> models.User:
+    return user
+
 def require_organizer(user: models.User = Depends(get_current_user)) -> models.User:
     if user.role != "organizador":
         raise HTTPException(status_code=403, detail="Acesso restrito a organizadores.")

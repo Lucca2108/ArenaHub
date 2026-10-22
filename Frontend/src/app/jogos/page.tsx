@@ -5,18 +5,16 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
 import { BrandMark } from '@/components/layout/BrandMark';
+import { api } from '@/services/api';
 
 export default function JogosPage() {
   const [jogos, setJogos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:8000/tournaments') // ou o endpoint correto dos jogos
-      .then((res) => res.json())
+    api.tournaments.list()
       .then((data) => {
-        if (Array.isArray(data)) {
-          setJogos(data);
-        }
+        setJogos(data);
         setLoading(false);
       })
       .catch((err) => {

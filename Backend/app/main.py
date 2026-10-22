@@ -1,5 +1,7 @@
 import os
 import re
+import secrets
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Response, status
@@ -9,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import bracket, models, schemas
-from .auth import create_access_token, hash_password, require_organizer, verify_password
+from .auth import create_access_token, hash_password, require_organizer, require_user, verify_password
 from .database import engine, get_db
 
 app = FastAPI(
@@ -61,6 +63,29 @@ def _get_match(db: Session, match_id: int) -> models.Match:
     if not match:
         raise HTTPException(status_code=404, detail="Partida não encontrada.")
     return match
+
+
+def _nickname_from_user(user: models.User) -> str:
+    return user.nickname or user.nome
+
+
+def _team_members_response(db: Session, team: models.Team) -> list[models.TeamMember]:
+    # Integra registros antigos (array JSON) sem criar contas fictícias.
+    members = list(team.members)
+    known = {m.nickname.lower() for m in members}
+    for nickname in team.jogadores or []:
+        if nickname.lower() not in known:
+            members.append(models.TeamMember(nickname=nickname, papel="membro", status="LEGADO"))
+    return members
+
+
+def _team_for_user(db: Session, team_id: int, user: models.User) -> models.Team:
+    team = _get_team(db, team_id)
+    is_captain = team.capitao_id == user.id
+    is_member = any(m.user_id == user.id and m.status == "ATIVO" for m in team.members)
+    if not is_captain and not is_member and user.role != "organizador":
+        raise HTTPException(status_code=403, detail="Você não participa desta equipe.")
+    return team
 
 
 def _tournament_matches(db: Session, tournament_id: int) -> list[models.Match]:
@@ -163,8 +188,6 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == credentials.email).first()
     if not user or not verify_password(credentials.senha, user.senha_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha inválidos.")
-    if user.role != "organizador":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso restrito a organizadores.")
     return {"access_token": create_access_token(user), "token_type": "bearer", "user": user}
 
 
@@ -174,11 +197,62 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if db.query(models.User).filter(models.User.email == user.email).first():
         raise HTTPException(status_code=400, detail="E-mail já cadastrado.")
 
-    new_user = models.User(nome=user.nome, email=user.email, senha_hash=hash_password(user.senha), role=user.role)
+    nickname = user.nickname.strip()
+    if db.query(models.User).filter(func.lower(models.User.nickname) == nickname.lower()).first():
+        raise HTTPException(status_code=400, detail="Nickname ja cadastrado.")
+    new_user = models.User(nome=user.nome.strip(), nickname=nickname, email=user.email, senha_hash=hash_password(user.senha), role="jogador")
     db.add(new_user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="E-mail ou nickname ja cadastrado.") from exc
     db.refresh(new_user)
     return new_user
+
+
+@app.get("/me", response_model=schemas.UserResponse)
+def current_user(user: models.User = Depends(require_user)):
+    return user
+
+
+@app.patch("/me", response_model=schemas.UserResponse)
+def update_current_user(payload: schemas.UserUpdate, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    data = payload.model_dump(exclude_unset=True)
+    old_nickname = user.nickname
+    if "nickname" in data and data["nickname"]:
+        nickname = data["nickname"].strip()
+        duplicate = db.query(models.User.id).filter(func.lower(models.User.nickname) == nickname.lower(), models.User.id != user.id).first()
+        if duplicate:
+            raise HTTPException(status_code=400, detail="Nickname ja cadastrado.")
+        data["nickname"] = nickname
+    if "email" in data and data["email"]:
+        duplicate = db.query(models.User.id).filter(func.lower(models.User.email) == str(data["email"]).lower(), models.User.id != user.id).first()
+        if duplicate:
+            raise HTTPException(status_code=400, detail="E-mail ja cadastrado.")
+    for campo, valor in data.items():
+        if valor is not None:
+            setattr(user, campo, valor.strip() if isinstance(valor, str) else valor)
+    if "nickname" in data and data["nickname"]:
+        for member in db.query(models.TeamMember).filter(models.TeamMember.user_id == user.id, models.TeamMember.status == "ATIVO").all():
+            member.nickname = data["nickname"]
+            if member.papel == "CAPITAO":
+                member.team.capitao = data["nickname"]
+                member.team.jogadores = [data["nickname"] if nick == old_nickname else nick for nick in (member.team.jogadores or [])]
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@app.get("/me/teams", response_model=List[schemas.TeamResponse])
+def my_teams(db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    team_ids = [row[0] for row in (
+        db.query(models.Team.id)
+        .outerjoin(models.TeamMember, models.TeamMember.team_id == models.Team.id)
+        .filter((models.Team.capitao_id == user.id) | ((models.TeamMember.user_id == user.id) & (models.TeamMember.status == "ATIVO")))
+        .all()
+    )]
+    return db.query(models.Team).filter(models.Team.id.in_(set(team_ids))).order_by(models.Team.nome).all()
 
 
 # ============================================================
@@ -201,18 +275,26 @@ def _commit_team(db: Session) -> None:
 
 # --- RF02: Cadastro de Equipes ---
 @app.post("/teams", response_model=schemas.TeamResponse, status_code=status.HTTP_201_CREATED)
-def create_team(team: schemas.TeamCreate, db: Session = Depends(get_db), user: models.User = Depends(require_organizer)):
+def create_team(team: schemas.TeamCreate, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
     nome = team.nome.strip()
     if _team_name_taken(db, nome):
         raise HTTPException(status_code=400, detail="Já existe uma equipe com esse nome.")
+    if user.role == "jogador":
+        capitao = _nickname_from_user(user)
+        jogadores = [capitao]
+    else:
+        capitao = team.capitao.strip()
+        jogadores = list(dict.fromkeys(team.jogadores or []))
     new_team = models.Team(
         nome=nome,
         tag=(team.tag or _make_tag(nome)).strip().upper(),
         cor=team.cor,
-        capitao=team.capitao,
-        jogadores=team.jogadores,
+        capitao=capitao,
+        jogadores=jogadores,
         capitao_id=user.id,  # dono vem do JWT, não do corpo da requisição
     )
+    if user.role == "jogador":
+        new_team.members.append(models.TeamMember(user=user, nickname=capitao, email=user.email, papel="CAPITAO", status="ATIVO"))
     db.add(new_team)
     _commit_team(db)
     db.refresh(new_team)
@@ -230,9 +312,9 @@ def get_team(team_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/teams/{team_id}", response_model=schemas.TeamResponse)
-def update_team(team_id: int, payload: schemas.TeamUpdate, db: Session = Depends(get_db), user: models.User = Depends(require_organizer)):
+def update_team(team_id: int, payload: schemas.TeamUpdate, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
     team = _get_team(db, team_id)
-    if team.capitao_id != user.id:
+    if team.capitao_id != user.id and user.role != "organizador":
         raise HTTPException(status_code=403, detail="Apenas quem cadastrou a equipe pode alterá-la.")
     data = payload.model_dump(exclude_unset=True)
     if data.get("nome") is not None:
@@ -249,9 +331,9 @@ def update_team(team_id: int, payload: schemas.TeamUpdate, db: Session = Depends
 
 
 @app.delete("/teams/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_team(team_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_organizer)):
+def delete_team(team_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
     team = _get_team(db, team_id)
-    if team.capitao_id != user.id:
+    if team.capitao_id != user.id and user.role != "organizador":
         raise HTTPException(status_code=403, detail="Apenas quem cadastrou a equipe pode excluí-la.")
     ja_jogou = (
         db.query(models.Match.id)
@@ -261,6 +343,80 @@ def delete_team(team_id: int, db: Session = Depends(get_db), user: models.User =
     if ja_jogou:
         raise HTTPException(status_code=409, detail="Essa equipe já tem partidas registradas e não pode ser excluída.")
     db.delete(team)  # também remove as linhas de tournament_teams
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/teams/{team_id}/members", response_model=List[schemas.TeamMemberResponse])
+def list_team_members(team_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    team = _team_for_user(db, team_id, user)
+    return team.members
+
+
+@app.post("/teams/{team_id}/members", response_model=schemas.TeamInviteResponse, status_code=status.HTTP_201_CREATED)
+def invite_team_member(team_id: int, payload: schemas.TeamMemberInvite, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    team = _get_team(db, team_id)
+    if team.capitao_id != user.id and user.role != "organizador":
+        raise HTTPException(status_code=403, detail="Apenas o capitão pode convidar integrantes.")
+    nickname = payload.nickname.strip()
+    target = None
+    if payload.email:
+        target = db.query(models.User).filter(func.lower(models.User.email) == str(payload.email).lower()).first()
+    if not target:
+        target = db.query(models.User).filter(func.lower(models.User.nickname) == nickname.lower()).first()
+    if target and target.id == team.capitao_id:
+        raise HTTPException(status_code=400, detail="Este atleta já é o capitão da equipe.")
+    if target and db.query(models.TeamMember.id).filter(models.TeamMember.team_id == team.id, models.TeamMember.user_id == target.id).first():
+        raise HTTPException(status_code=409, detail="Este atleta já está ou já foi convidado para a equipe.")
+    member = models.TeamMember(
+        team=team,
+        user=target,
+        nickname=(target.nickname or target.nome) if target else nickname,
+        email=target.email if target else (str(payload.email) if payload.email else None),
+        papel="MEMBRO",
+        status="CONVITE_ENVIADO",
+        invite_token=f"{int(datetime.utcnow().timestamp())}.{secrets.token_urlsafe(24)}",
+    )
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+    return member
+
+
+@app.post("/team-invites/{invite_token}/accept", response_model=schemas.TeamMemberResponse)
+def accept_team_invite(invite_token: str, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    member = db.query(models.TeamMember).filter(models.TeamMember.invite_token == invite_token).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Convite não encontrado.")
+    try:
+        issued_at = datetime.fromtimestamp(int((member.invite_token or "").split(".", 1)[0]))
+    except (ValueError, TypeError, IndexError):
+        raise HTTPException(status_code=410, detail="Este convite é inválido.")
+    if datetime.utcnow() - issued_at > timedelta(days=7):
+        raise HTTPException(status_code=410, detail="Este convite expirou.")
+    if member.user_id not in (None, user.id) and member.email != user.email:
+        raise HTTPException(status_code=403, detail="Este convite não pertence a esta conta.")
+    member.user = user
+    member.nickname = user.nickname or user.nome
+    member.email = user.email
+    member.status = "ATIVO"
+    member.invite_token = None
+    db.commit()
+    db.refresh(member)
+    return member
+
+
+@app.delete("/teams/{team_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_team_member(team_id: int, member_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    team = _get_team(db, team_id)
+    if team.capitao_id != user.id and user.role != "organizador":
+        raise HTTPException(status_code=403, detail="Apenas o capitão pode remover integrantes.")
+    member = db.query(models.TeamMember).filter(models.TeamMember.id == member_id, models.TeamMember.team_id == team.id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Integrante não encontrado.")
+    if member.papel == "CAPITAO":
+        raise HTTPException(status_code=409, detail="Transfira a capitania antes de remover o capitão.")
+    db.delete(member)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -299,6 +455,32 @@ def list_tournaments(db: Session = Depends(get_db)):
 @app.get("/tournaments/{tournament_id}", response_model=schemas.TournamentResponse)
 def get_tournament(tournament_id: int, db: Session = Depends(get_db)):
     return _get_tournament(db, tournament_id)
+
+
+@app.get("/me/tournaments", response_model=List[schemas.TournamentResponse])
+def my_tournaments(db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    return (
+        db.query(models.Tournament)
+        .join(models.Tournament.teams)
+        .outerjoin(models.TeamMember, models.TeamMember.team_id == models.Team.id)
+        .filter((models.Team.capitao_id == user.id) | ((models.TeamMember.user_id == user.id) & (models.TeamMember.status == "ATIVO")))
+        .distinct()
+        .order_by(models.Tournament.id.desc())
+        .all()
+    )
+
+
+@app.get("/me/matches", response_model=List[schemas.MatchResponse])
+def my_matches(db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    team_ids = [row[0] for row in db.query(models.Team.id).outerjoin(models.TeamMember, models.TeamMember.team_id == models.Team.id).filter((models.Team.capitao_id == user.id) | ((models.TeamMember.user_id == user.id) & (models.TeamMember.status == "ATIVO"))).distinct().all()]
+    if not team_ids:
+        return []
+    return (
+        db.query(models.Match)
+        .filter((models.Match.team_a_id.in_(team_ids)) | (models.Match.team_b_id.in_(team_ids)))
+        .order_by(models.Match.data_hora, models.Match.id)
+        .all()
+    )
 
 
 @app.put("/tournaments/{tournament_id}", response_model=schemas.TournamentResponse)
@@ -375,6 +557,32 @@ def enroll_teams(
     for team_id in novos:
         tournament.teams.append(_get_team(db, team_id))
     db.commit()
+    db.refresh(tournament)
+    return tournament
+
+
+@app.post("/tournaments/{tournament_id}/enroll", response_model=schemas.TournamentResponse, status_code=status.HTTP_201_CREATED)
+def enroll_my_team(tournament_id: int, payload: schemas.TournamentTeamAdd, db: Session = Depends(get_db), user: models.User = Depends(require_user)):
+    tournament = db.query(models.Tournament).with_for_update().filter(models.Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Campeonato não encontrado.")
+    if tournament.status != "INSCRICOES_ABERTAS":
+        raise HTTPException(status_code=409, detail="As inscrições deste campeonato estão encerradas.")
+    if len(payload.ids()) != 1:
+        raise HTTPException(status_code=422, detail="Informe uma única equipe.")
+    team = _get_team(db, payload.ids()[0])
+    if team.capitao_id != user.id:
+        raise HTTPException(status_code=403, detail="Apenas o capitão pode inscrever a equipe.")
+    if team in tournament.teams:
+        raise HTTPException(status_code=409, detail="Equipe já inscrita neste campeonato.")
+    if len(tournament.teams) >= tournament.max_equipes:
+        raise HTTPException(status_code=422, detail="Limite de equipes atingido.")
+    tournament.teams.append(team)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Equipe já inscrita neste campeonato.") from exc
     db.refresh(tournament)
     return tournament
 

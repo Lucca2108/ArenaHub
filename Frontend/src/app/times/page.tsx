@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
 import { BrandMark } from '@/components/layout/BrandMark';
 import { Shield, ArrowRight } from 'lucide-react';
+import { api } from '@/services/api';
 
 export default function TimesPage() {
   const [times, setTimes] = useState<any[]>([]);
@@ -14,15 +15,14 @@ export default function TimesPage() {
   useEffect(() => {
     async function fetchTimes() {
       try {
-        const response = await fetch('http://localhost:8000/teams');
-        if (response.ok) {
-          const data = await response.json();
+        const data = await api.teams.list();
+        if (Array.isArray(data)) {
           setTimes(data.map((item: any) => ({
             id: item.id,
             nome: item.nome,
             jogo: item.jogo || 'VALORANT',
             tag: item.tag || 'SHDW',
-            membros: item.membros || 5,
+            membros: item.jogadores.length,
             vitorias: item.vitorias || 0
           })));
         }

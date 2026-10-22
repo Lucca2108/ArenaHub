@@ -13,6 +13,7 @@ export type Formato = 'pontos_corridos' | 'eliminatoria'
 export interface User {
   id: number
   nome: string
+  nickname?: string | null
   email: string
   role: string
 }
@@ -31,6 +32,17 @@ export interface Team {
   capitao: string
   jogadores: string[] // lista de nicks
   capitao_id?: number // "?" = campo opcional
+  members?: TeamMember[]
+}
+
+export interface TeamMember {
+  id: number
+  user_id: number | null
+  nickname: string
+  email?: string | null
+  papel: string
+  status: string
+  invite_token?: string | null
 }
 
 export interface Tournament {
@@ -70,6 +82,7 @@ export interface LoginInput {
 
 export interface RegisterInput {
   nome: string
+  nickname: string
   email: string
   senha: string
 }
@@ -116,6 +129,19 @@ export interface Api {
     login(dados: LoginInput): Promise<Session>
     register(dados: RegisterInput): Promise<User>
   }
+  profile: {
+    get(): Promise<User>
+    update(dados: Partial<Pick<User, 'nome' | 'nickname' | 'email'>>): Promise<User>
+  }
+  athlete: {
+    teams(): Promise<Team[]>
+    tournaments(): Promise<Tournament[]>
+    matches(): Promise<Match[]>
+    inviteMember(teamId: number, dados: { nickname: string; email?: string }): Promise<TeamMember>
+    removeMember(teamId: number, memberId: number): Promise<void>
+    acceptInvite(token: string): Promise<TeamMember>
+    enrollTeam(tournamentId: number, teamId: number): Promise<Tournament>
+  }
   tournaments: {
     list(): Promise<Tournament[]>
     get(id: number): Promise<Tournament>
@@ -129,6 +155,7 @@ export interface Api {
   }
   teams: {
     list(): Promise<Team[]>
+    get(id: number): Promise<Team>
     create(dados: TeamInput): Promise<Team>
     update(id: number, dados: TeamInput): Promise<Team>
     remove(id: number): Promise<void>

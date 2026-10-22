@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
 import { BrandMark } from '@/components/layout/BrandMark';
 import { Trophy, Users, Calendar, Shield, ArrowLeft } from 'lucide-react';
+import { api } from '@/services/api';
 
 export default function CampeonatoDetalhesPage() {
   const params = useParams();
@@ -16,13 +17,13 @@ export default function CampeonatoDetalhesPage() {
   const [campeonato, setCampeonato] = useState<any>({
     id: campeonatoId,
     titulo: 'A carregar torneio...',
-    subtitulo: 'ArenaHub Oficial',
-    jogo: 'VALORANT',
-    status: 'EM ANDAMENTO',
-    premiacao: '$ 10.000',
-    dataInicio: '2026',
+    subtitulo: '',
+    jogo: '',
+    status: '',
+    premiacao: '',
+    dataInicio: '',
     formato: 'Eliminatória',
-    participantes: '16 Equipas',
+    participantes: '—',
     descricao: 'A carregar detalhes do banco de dados...',
     equipasInscritas: [],
     confrontos: []
@@ -31,27 +32,21 @@ export default function CampeonatoDetalhesPage() {
   useEffect(() => {
     async function fetchCampeonatoDetalhes() {
       try {
-        const response = await fetch(`http://localhost:8000/tournaments/${campeonatoId}`);
-        if (response.ok) {
-          const data = await response.json();
+        const data = await api.tournaments.get(Number(campeonatoId));
+        if (data) {
           setCampeonato({
             id: data.id,
             titulo: data.nome,
-            subtitulo: data.descricao || 'ArenaHub Oficial',
-            jogo: data.jogo || 'VALORANT',
-            status: data.status || 'EM ANDAMENTO',
-            premiacao: data.premiacao || '$ 10.000',
-            dataInicio: data.dataInicio || '2026',
+            subtitulo: data.descricao || '',
+            jogo: data.jogo || '',
+            status: data.status || '',
+            premiacao: data.premiacao || '',
+            dataInicio: data.data_inicio || '',
             formato: data.formato || 'Eliminatória',
-            participantes: data.participantes || '16 Equipas',
+            participantes: `${data.team_ids.length}/${data.max_equipes} equipes`,
             descricao: data.descricao || 'Detalhes do torneio.',
-            equipasInscritas: data.equipasInscritas || [
-              { id: 1, nome: 'Shadow Gaming', tag: 'SHDW', status: 'Confirmado' },
-              { id: 2, nome: 'Apex Red', tag: 'APEX', status: 'Confirmado' },
-            ],
-            confrontos: data.confrontos || [
-              { id: 1, fase: 'Quartas de Final', t1: 'Shadow Gaming', t2: 'Apex Red', placar: '2 - 1', status: 'Finalizado' },
-            ]
+            equipasInscritas: data.team_ids || [],
+            confrontos: []
           });
         }
       } catch (error) {

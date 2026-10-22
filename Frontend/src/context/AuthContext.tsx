@@ -24,8 +24,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // O Next monta a página primeiro no servidor, onde não existe localStorage.
   // Por isso a sessão salva só é lida aqui, quando a página já está no navegador.
   useEffect(() => {
-    setSessao(getSession())
+    const atualizarSessao = () => setSessao(getSession())
+    atualizarSessao()
+    window.addEventListener('arenahub:session-changed', atualizarSessao)
     setCarregado(true)
+    return () => window.removeEventListener('arenahub:session-changed', atualizarSessao)
   }, [])
 
   async function login(dados: LoginInput) {

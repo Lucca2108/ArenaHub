@@ -1,4 +1,4 @@
-import type { Api, Confronto, Match, Team, Tournament, TournamentInput, TeamInput, User } from '@/types'
+import type { Api, Confronto, Match, Team, Tournament, TournamentInput, TeamInput, User, TeamMember } from '@/types'
 import { ApiError } from './errors'
 import { getSession } from './session'
 import { roundRobin, eliminationRound, matchWinner, shuffle } from '@/utils/bracket'
@@ -303,20 +303,90 @@ export const mockApi: Api = {
       await esperar(500)
       const user = carregarBanco().users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
       if (!user || user.senha !== senha) throw new ApiError('E-mail ou senha inválidos.', 401)
-      if (user.role !== 'organizador') throw new ApiError('Acesso restrito a organizadores.', 403)
-      return { token: `token-demo-${user.id}`, user: { id: user.id, nome: user.nome, email: user.email, role: user.role } }
+      return { token: `token-demo-${user.id}`, user: { id: user.id, nome: user.nome, nickname: user.nickname, email: user.email, role: user.role } }
     },
 
-    async register({ nome, email, senha }) {
+    async register({ nome, nickname, email, senha }) {
       await esperar(500)
       const { users } = carregarBanco()
       if (users.some((u) => u.email.toLowerCase() === email.trim().toLowerCase())) {
         throw new ApiError('E-mail já cadastrado.', 400)
       }
-      const user: UsuarioDemo = { id: proximoId(users), nome, email, senha, role: 'organizador' }
+      const user: UsuarioDemo = { id: proximoId(users), nome, nickname, email, senha, role: 'jogador' }
       users.push(user)
       salvarBanco()
-      return { id: user.id, nome, email, role: user.role }
+      return { id: user.id, nome, nickname, email, role: user.role }
+    },
+  },
+
+  profile: {
+    async get() {
+      await esperar()
+      const id = usuarioLogadoId()
+      const user = carregarBanco().users.find((item) => item.id === id)
+      if (!user) throw new ApiError('UsuÃ¡rio nÃ£o encontrado.', 404)
+      return copia(user)
+    },
+    async update(dados) {
+      const db = carregarBanco()
+      const user = db.users.find((item) => item.id === usuarioLogadoId())
+      if (!user) throw new ApiError('UsuÃ¡rio nÃ£o encontrado.', 404)
+      Object.assign(user, dados)
+      salvarBanco()
+      return copia(user)
+    },
+  },
+
+  athlete: {
+    async teams() {
+      await esperar()
+      const id = usuarioLogadoId()
+      return copia(carregarBanco().teams.filter((team) => team.capitao_id === id))
+    },
+    async tournaments() {
+      await esperar()
+      const db = carregarBanco()
+      const ids = db.teams.filter((team) => team.capitao_id === usuarioLogadoId()).map((team) => team.id)
+      return copia(db.tournaments.filter((tournament) => tournament.team_ids.some((id) => ids.includes(id))))
+    },
+    async matches() {
+      await esperar()
+      const db = carregarBanco()
+      const ids = db.teams.filter((team) => team.capitao_id === usuarioLogadoId()).map((team) => team.id)
+      return copia(db.matches.filter((match) => ids.includes(match.team_a_id) || (match.team_b_id !== null && ids.includes(match.team_b_id))))
+    },
+    async inviteMember(teamId, dados) {
+      const team = buscarEquipe(teamId)
+      const member: TeamMember = { id: Date.now(), user_id: null, nickname: dados.nickname, email: dados.email, papel: 'membro', status: 'CONVITE_ENVIADO', invite_token: `demo-${Date.now()}` }
+      team.members = [...(team.members || []), member]
+      salvarBanco()
+      return copia(member)
+    },
+    async removeMember(teamId, memberId) {
+      const team = buscarEquipe(teamId)
+      team.members = (team.members || []).filter((member) => member.id !== memberId)
+      salvarBanco()
+    },
+    async acceptInvite(token) {
+      const team = carregarBanco().teams.find((item) => item.members?.some((member) => member.invite_token === token))
+      const member = team?.members?.find((item) => item.invite_token === token)
+      if (!member) throw new ApiError('Convite nÃ£o encontrado.', 404)
+      member.status = 'ATIVO'
+      member.user_id = usuarioLogadoId()
+      member.invite_token = null
+      salvarBanco()
+      return copia(member)
+    },
+    async enrollTeam(tournamentId, teamId) {
+      const tournament = buscarCampeonato(tournamentId)
+      const team = buscarEquipe(teamId)
+      if (team.capitao_id !== usuarioLogadoId()) throw new ApiError('Apenas o capitÃ£o pode inscrever a equipe.', 403)
+      if (tournament.status !== 'INSCRICOES_ABERTAS') throw new ApiError('InscriÃ§Ãµes encerradas.', 409)
+      if (tournament.team_ids.includes(teamId)) throw new ApiError('Equipe jÃ¡ inscrita.', 409)
+      if (tournament.team_ids.length >= tournament.max_equipes) throw new ApiError('Limite de equipes atingido.', 422)
+      tournament.team_ids.push(teamId)
+      salvarBanco()
+      return copia(tournament)
     },
   },
 
@@ -454,6 +524,10 @@ export const mockApi: Api = {
       const lista = copia(carregarBanco().teams)
       lista.sort((a, b) => a.nome.localeCompare(b.nome)) // ordem alfabética
       return lista
+    },
+    async get(id) {
+      await esperar()
+      return copia(buscarEquipe(id))
     },
 
     async create(dados) {
