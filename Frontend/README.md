@@ -92,7 +92,7 @@ Dá para reaproveitar `TeamLogo`, `MatchCard` (sem as props `onSchedule`/`onStar
 
 ## 🔌 Rotas que o painel usa (contrato com o backend)
 
-**Danilo / Daniel:** esta é a lista do que o painel chama no modo `api`. As marcadas com ✅ já existem no `main.py`.
+**Danilo / Daniel:** esta é a lista do que o painel chama no modo `api`. Todas já existem no `main.py` do backend (✅).
 A interface `Api` em `src/types.ts` descreve exatamente essas funções.
 Erros devem vir no padrão do FastAPI (`{"detail": "mensagem"}`); a mensagem aparece para o usuário.
 O token (quando existir) vai em `Authorization: Bearer <token>`.
@@ -102,7 +102,7 @@ O token (quando existir) vai em `Authorization: Bearer <token>`.
 | Método | Rota | Corpo | Resposta | |
 | :--- | :--- | :--- | :--- | :---: |
 | POST | `/users` | `{nome, email, senha, role: "organizador"}` | `UserResponse` | ✅ |
-| POST | `/auth/login` | `{email, senha}` | `{access_token, user: {id, nome, email, role}}` | ⏳ |
+| POST | `/auth/login` | `{email, senha}` | `{access_token, user: {id, nome, email, role}}` | ✅ |
 
 ### Campeonatos
 
@@ -110,30 +110,30 @@ O token (quando existir) vai em `Authorization: Bearer <token>`.
 | :--- | :--- | :--- | :--- | :---: |
 | GET | `/tournaments` | – | lista de campeonatos | ✅ |
 | POST | `/tournaments` | campos do campeonato + `organizador_id` | campeonato | ✅ |
-| GET | `/tournaments/{id}` | – | campeonato | ⏳ |
-| PUT | `/tournaments/{id}` | campos editáveis (inclui `status`) | campeonato | ⏳ |
-| DELETE | `/tournaments/{id}` | – | 204 | ⏳ |
-| POST | `/tournaments/{id}/teams` | `{team_id}` | – | ⏳ |
-| DELETE | `/tournaments/{id}/teams/{team_id}` | – | 204 | ⏳ |
-| POST | `/tournaments/{id}/generate-matches` | – | – | ⏳ |
-| POST | `/tournaments/{id}/next-round` | – (só eliminatória) | – | ⏳ |
+| GET | `/tournaments/{id}` | – | campeonato | ✅ |
+| PUT | `/tournaments/{id}` | campos editáveis (inclui `status`) | campeonato | ✅ |
+| DELETE | `/tournaments/{id}` | – | 204 | ✅ |
+| POST | `/tournaments/{id}/teams` | `{team_id}` | – | ✅ |
+| DELETE | `/tournaments/{id}/teams/{team_id}` | – | 204 | ✅ |
+| POST | `/tournaments/{id}/generate-matches` | – | – | ✅ |
+| POST | `/tournaments/{id}/next-round` | – (só eliminatória) | – | ✅ |
 
 ### Equipes
 
 | Método | Rota | Corpo | Resposta | |
 | :--- | :--- | :--- | :--- | :---: |
-| GET | `/teams` | – | lista de equipes | ⏳ |
+| GET | `/teams` | – | lista de equipes | ✅ |
 | POST | `/teams` | campos da equipe + `capitao_id` | equipe | ✅ |
-| PUT | `/teams/{id}` | campos editáveis | equipe | ⏳ |
-| DELETE | `/teams/{id}` | – | 204 (409 se já jogou partidas) | ⏳ |
+| PUT | `/teams/{id}` | campos editáveis | equipe | ✅ |
+| DELETE | `/teams/{id}` | – | 204 (409 se já jogou partidas) | ✅ |
 
 ### Partidas
 
 | Método | Rota | Corpo / Parâmetros | Resposta | |
 | :--- | :--- | :--- | :--- | :---: |
-| GET | `/matches` | `?tournament_id=` (opcional) | lista de partidas | ⏳ |
-| PATCH | `/matches/{id}` | `{data_hora}` ou `{status: "EM_ANDAMENTO"}` | partida | ⏳ |
-| POST | `/matches/{id}/result` | `{score_a, score_b, finalizar}` | partida | ⏳ |
+| GET | `/matches` | `?tournament_id=` (opcional) | lista de partidas | ✅ |
+| PATCH | `/matches/{id}` | `{data_hora}` ou `{status: "EM_ANDAMENTO"}` | partida | ✅ |
+| POST | `/matches/{id}/result` | `{score_a, score_b, finalizar}` | partida | ✅ |
 
 `finalizar: false` salva placar parcial e deixa a partida `EM_ANDAMENTO`; `true` muda para `FINALIZADO` e deve disparar a atualização da classificação.
 
