@@ -13,15 +13,57 @@ export default function UserLoginPage() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [nome, setNome] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simula a autenticação gravando no localStorage do navegador
-    localStorage.setItem('arena_user_logged', 'true');
-    localStorage.setItem('arena_user_name', nome || email.split('@')[0] || 'Jogador');
-    
-    // Redireciona o utilizador para o Hub do Jogador após logar
-    router.push('/hub');
+    setError('');
+    setLoading(true);
+
+    try {
+      const endpoint = isLogin ? 'http://localhost:8000/auth/login' : 'http://localhost:8000/users';
+      
+      const payload = isLogin 
+        ? { username: email, password: senha }
+        : { 
+            nome: nome || email.split('@')[0], 
+            email: email, 
+            senha: senha, 
+            role: 'jogador' 
+          };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        let detailMsg = 'Erro ao processar autenticação no servidor.';
+        
+        if (errData.detail) {
+          if (typeof errData.detail === 'string') {
+            detailMsg = errData.detail;
+          } else if (Array.isArray(errData.detail)) {
+            detailMsg = errData.detail.map((errItem: any) => errItem.msg || JSON.stringify(errItem)).join(', ');
+          } else if (typeof errData.detail === 'object') {
+            detailMsg = JSON.stringify(errData.detail);
+          }
+        }
+        throw new Error(detailMsg);
+      }
+
+      localStorage.setItem('arena_user_logged', 'true');
+      localStorage.setItem('arena_user_name', nome || email.split('@')[0] || 'Jogador');
+      
+      router.push('/hub');
+    } catch (err: any) {
+      setError(err.message || 'Erro de ligação à API.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -94,6 +136,12 @@ export default function UserLoginPage() {
                 {isLogin ? 'Entre para acompanhar seus torneios e equipas.' : 'Registe-se para participar das competições.'}
               </p>
             </div>
+
+            {error && (
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '20px' }}>
+                {typeof error === 'string' ? error : 'Ocorreu um erro no servidor.'}
+              </div>
+            )}
 
             <div style={{ display: 'flex', backgroundColor: '#0b0e14', padding: '4px', borderRadius: '12px', marginBottom: '28px', border: '1px solid #1e293b' }}>
               <button
@@ -168,6 +216,7 @@ export default function UserLoginPage() {
                 </label>
                 <input
                   type="email"
+                  required
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -191,6 +240,7 @@ export default function UserLoginPage() {
                 </label>
                 <input
                   type="password"
+                  required
                   placeholder="••••••••"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
@@ -210,6 +260,7 @@ export default function UserLoginPage() {
 
               <button
                 type="submit"
+                disabled={loading}
                 style={{
                   marginTop: '10px',
                   width: '100%',
@@ -225,7 +276,7 @@ export default function UserLoginPage() {
                   transition: 'background-color 0.2s'
                 }}
               >
-                {isLogin ? 'Entrar na Arena' : 'Concluir Registo'}
+                {loading ? 'A processar...' : isLogin ? 'Entrar na Arena' : 'Concluir Registo'}
               </button>
             </form>
           </motion.div>

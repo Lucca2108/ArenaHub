@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
@@ -8,43 +8,37 @@ import { BrandMark } from '@/components/layout/BrandMark';
 
 export default function CampeonatosPage() {
   const [busca, setBusca] = useState('');
+  const [campeonatos, setCampeonatos] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const campeonatosMock = [
-    {
-      id: 1,
-      titulo: 'VCT 2026 Americas Stage 2',
-      subtitulo: 'ArenaHub Oficial',
-      jogo: 'VALORANT',
-      status: 'AO VIVO',
-      premiacao: '$ 250.000',
-    },
-    {
-      id: 2,
-      titulo: 'CS2 Pro League Season 8',
-      subtitulo: 'Liga Sul-Americana de CS',
-      jogo: 'COUNTER-STRIKE 2',
-      status: 'EM ANDAMENTO',
-      premiacao: '$ 50.000',
-    },
-    {
-      id: 3,
-      titulo: 'LOL Open Cup 2026',
-      subtitulo: 'ArenaHub Community',
-      jogo: 'LEAGUE OF LEGENDS',
-      status: 'INSCRIÇÕES ABERTAS',
-      premiacao: '$ 10.000',
-    },
-    {
-      id: 4,
-      titulo: 'R6 South American Cup 2026',
-      subtitulo: 'Ubisoft / ArenaHub',
-      jogo: 'RAINBOW SIX SIEGE',
-      status: 'PRÓXIMO',
-      premiacao: '$ 20.000',
-    },
-  ];
+  useEffect(() => {
+    async function fetchCampeonatos() {
+      try {
+        const response = await fetch('http://localhost:8000/tournaments');
+        if (response.ok) {
+          const data = await response.json();
+          // Mapeia os dados vindos do banco para o formato visual dos cards
+          const formatados = data.map((item: any) => ({
+            id: item.id,
+            titulo: item.nome,
+            subtitulo: item.descricao || 'ArenaHub Oficial',
+            jogo: item.jogo || 'VALORANT',
+            status: item.status || 'EM ANDAMENTO',
+            premiacao: item.premiacao || '$ 10.000',
+          }));
+          setCampeonatos(formatados);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar campeonatos do backend:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  const campeonatosFiltrados = campeonatosMock.filter((camp) =>
+    fetchCampeonatos();
+  }, []);
+
+  const campeonatosFiltrados = campeonatos.filter((camp: any) =>
     camp.titulo.toLowerCase().includes(busca.toLowerCase()) ||
     camp.jogo.toLowerCase().includes(busca.toLowerCase())
   );
@@ -145,70 +139,76 @@ export default function CampeonatosPage() {
             </div>
           </motion.div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '24px' }}>
-            {campeonatosFiltrados.map((camp, indice) => (
-              <motion.div
-                key={camp.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: indice * 0.08, duration: 0.3 }}
-                style={{
-                  backgroundColor: '#121824',
-                  border: '1px solid #1e293b',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxShadow: '0 8px 20px rgba(0, 0, 0, 0.4)'
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '9999px', backgroundColor: 'rgba(124, 58, 237, 0.2)', color: '#c084fc', border: '1px solid rgba(124, 58, 237, 0.4)' }}>
-                      {camp.status}
-                    </span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      {camp.jogo}
-                    </span>
-                  </div>
-
-                  <h3 style={{ fontSize: '19px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
-                    {camp.titulo}
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '24px' }}>
-                    {camp.subtitulo}
-                  </p>
-                </div>
-
-                <div style={{ borderTop: '1px solid #1e293b', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {loading ? (
+            <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>A carregar campeonatos do banco de dados...</div>
+          ) : campeonatosFiltrados.length === 0 ? (
+            <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Nenhum campeonato encontrado no banco de dados.</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '24px' }}>
+              {campeonatosFiltrados.map((camp: any, indice: number) => (
+                <motion.div
+                  key={camp.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: indice * 0.08, duration: 0.3 }}
+                  style={{
+                    backgroundColor: '#121824',
+                    border: '1px solid #1e293b',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.4)'
+                  }}
+                >
                   <div>
-                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>Premiação</div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: '#34d399' }}>{camp.premiacao}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '9999px', backgroundColor: 'rgba(124, 58, 237, 0.2)', color: '#c084fc', border: '1px solid rgba(124, 58, 237, 0.4)' }}>
+                        {camp.status}
+                      </span>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {camp.jogo}
+                      </span>
+                    </div>
+
+                    <h3 style={{ fontSize: '19px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
+                      {camp.titulo}
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '24px' }}>
+                      {camp.subtitulo}
+                    </p>
                   </div>
 
-                  <Link
-                    href={`/campeonatos/${camp.id}`}
-                    style={{
-                      backgroundColor: '#7c3aed',
-                      color: '#fff',
-                      padding: '8px 18px',
-                      borderRadius: '10px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)'
-                    }}
-                  >
-                    Ver detalhes →
-                  </Link>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                  <div style={{ borderTop: '1px solid #1e293b', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>Premiação</div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: '#34d399' }}>{camp.premiacao}</div>
+                    </div>
+
+                    <Link
+                      href={`/campeonatos/${camp.id}`}
+                      style={{
+                        backgroundColor: '#7c3aed',
+                        color: '#fff',
+                        padding: '8px 18px',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        textDecoration: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)'
+                      }}
+                    >
+                      Ver detalhes →
+                    </Link>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </main>
       </div>
     </div>
