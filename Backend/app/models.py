@@ -18,9 +18,13 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String, nullable=False)
+    nickname = Column(String, unique=True, index=True, nullable=True)
     email = Column(String, unique=True, index=True, nullable=False)
     senha_hash = Column(String, nullable=False)
     role = Column(String, default=UserRole.JOGADOR)
+    account_status = Column(String, nullable=False, default="ATIVO", server_default="ATIVO")
+    activation_token = Column(String, unique=True, index=True, nullable=True)
+    activation_expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -47,6 +51,25 @@ class Team(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     tournaments = relationship("Tournament", secondary=tournament_teams, back_populates="teams")
+    members = relationship("TeamMember", back_populates="team", cascade="all, delete-orphan")
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+    __table_args__ = (Index("ix_team_members_team_user", "team_id", "user_id", unique=True),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    nickname = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+    papel = Column(String, nullable=False, default="MEMBRO", server_default="MEMBRO")
+    status = Column(String, nullable=False, default="PENDENTE", server_default="PENDENTE")
+    invite_token = Column(String, unique=True, index=True, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    team = relationship("Team", back_populates="members")
+    user = relationship("User")
 
 
 class Tournament(Base):

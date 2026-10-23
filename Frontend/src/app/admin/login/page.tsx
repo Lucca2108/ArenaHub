@@ -38,7 +38,7 @@ interface Erros {
 
 // Página /admin/login
 export default function LoginPage() {
-  const { user, login, register } = useAuth()
+  const { login, register } = useAuth()
   const toast = useToast()
   const router = useRouter()
 
@@ -53,8 +53,8 @@ export default function LoginPage() {
 
   // Se já está logado, não precisa ver o login: vai direto para o painel
   useEffect(() => {
-    if (user) router.replace('/admin')
-  }, [user, router])
+    router.replace('/login')
+  }, [router])
 
   function trocarModo(novoModo: string) {
     setModo(novoModo)
@@ -79,7 +79,7 @@ export default function LoginPage() {
     setCarregando(true)
     setErroServidor('')
     try {
-      const dados = { nome: nome.trim(), email: email.trim(), senha }
+      const dados = { nome: nome.trim(), nickname: nome.trim() || email.split('@')[0], email: email.trim(), senha }
       let usuario: Usuario
       if (modo === 'login') usuario = await login(dados)
       else usuario = await register(dados)

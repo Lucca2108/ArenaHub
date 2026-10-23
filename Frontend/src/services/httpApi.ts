@@ -1,7 +1,7 @@
-import type { Api, Match, Team, Tournament, User } from '@/types'
+import type { Api, Match, Team, Tournament, User, TeamMember, ReceivedInvite } from '@/types'
 import { API_BASE } from './config'
 import { ApiError } from './errors'
-import { getSession } from './session'
+import { clearSession, getSession } from './session'
 import { makeTag } from '@/utils/format'
 
 // Chamadas ao backend FastAPI de verdade. A lista de rotas está no Frontend/README.md.
@@ -37,6 +37,7 @@ async function request<T>(caminho: string, metodo = 'GET', corpo?: object): Prom
     }
   }
 
+  if (resposta.status === 401) clearSession()
   if (!resposta.ok) throw new ApiError(mensagemDeErro(dados, resposta.status), resposta.status)
   return dados
 }
@@ -70,7 +71,7 @@ function completarCampeonato(t: Partial<Tournament>): Tournament {
 }
 
 function completarEquipe(e: Partial<Team>): Team {
-  return { id: 0, nome: '', tag: makeTag(e.nome || ''), cor: '#00f0ff', capitao: '', jogadores: [], ...e }
+  return { id: 0, nome: '', tag: makeTag(e.nome || ''), cor: '#00f0ff', capitao: '', jogadores: [], members: [], ...e }
 }
 
 function completarPartida(p: Partial<Match>): Match {
@@ -88,8 +89,51 @@ export const httpApi: Api = {
       const dados = await request<{ access_token: string; user: User }>('/auth/login', 'POST', { email, senha })
       return { token: dados.access_token, user: dados.user }
     },
-    register({ nome, email, senha }) {
-      return request('/users', 'POST', { nome, email, senha, role: 'organizador' })
+    register({ nome, nickname, email, senha }) {
+      return request('/users', 'POST', { nome, nickname, email, senha })
+    },
+  },
+
+  profile: {
+    get() {
+      return request<User>('/me')
+    },
+    update(dados) {
+      return request<User>('/me', 'PATCH', dados)
+    },
+  },
+
+  athlete: {
+    async teams() {
+      const lista = await request<Team[]>('/me/teams')
+      return lista.map(completarEquipe)
+    },
+    invites() {
+      return request<ReceivedInvite[]>('/me/invites')
+    },
+    declineInvite(memberId) {
+      return request(`/me/invites/${memberId}`, 'DELETE')
+    },
+    acceptReceivedInvite(memberId) {
+      return request<TeamMember>(`/me/invites/${memberId}/accept`, 'POST')
+    },
+    tournaments() {
+      return request<Tournament[]>('/me/tournaments')
+    },
+    matches() {
+      return request<Match[]>('/me/matches')
+    },
+    inviteMember(teamId, dados) {
+      return request<TeamMember>(`/teams/${teamId}/members`, 'POST', dados)
+    },
+    removeMember(teamId, memberId) {
+      return request(`/teams/${teamId}/members/${memberId}`, 'DELETE')
+    },
+    acceptInvite(token) {
+      return request<TeamMember>(`/team-invites/${token}/accept`, 'POST')
+    },
+    enrollTeam(tournamentId, teamId) {
+      return request<Tournament>(`/tournaments/${tournamentId}/enroll`, 'POST', { team_id: teamId })
     },
   },
 
@@ -131,6 +175,9 @@ export const httpApi: Api = {
     async list() {
       const lista = await request<Team[]>('/teams')
       return lista.map(completarEquipe)
+    },
+    async get(id) {
+      return completarEquipe(await request<Team>(`/teams/${id}`))
     },
     async create(dados) {
       return completarEquipe(await request<Team>('/teams', 'POST', { ...dados, capitao_id: idDoUsuarioLogado() }))

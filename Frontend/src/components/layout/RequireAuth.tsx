@@ -10,10 +10,11 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    if (carregado && !user) router.replace('/admin/login')
+    if (carregado && !user) router.replace('/login')
+    if (carregado && user && user.role !== 'organizador') router.replace('/hub')
   }, [carregado, user, router])
 
   // enquanto não sabe se está logado (ou enquanto redireciona), não mostra nada
-  if (!carregado || !user) return null
+  if (!carregado || !user || user.role !== 'organizador') return null
   return children
 }

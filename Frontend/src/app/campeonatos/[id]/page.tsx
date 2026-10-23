@@ -1,54 +1,73 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
 import { BrandMark } from '@/components/layout/BrandMark';
 import { Trophy, Users, Calendar, Shield, ArrowLeft } from 'lucide-react';
+import { api } from '@/services/api';
 
 export default function CampeonatoDetalhesPage() {
   const params = useParams();
   const campeonatoId = params?.id || '1';
   
   const [abaAtiva, setAbaAtiva] = useState<'geral' | 'chaveamento' | 'equipas'>('geral');
-
-  const campeonato = {
+  const [campeonato, setCampeonato] = useState<any>({
     id: campeonatoId,
-    titulo: 'VCT 2026 Americas Stage 2',
-    subtitulo: 'ArenaHub Oficial • Etapa Principal',
-    jogo: 'VALORANT',
-    status: 'AO VIVO',
-    premiacao: '$ 250.000',
-    dataInicio: '15 de Maio de 2026',
-    formato: 'Eliminatória Dupla (MD3 / MD5 na Final)',
-    participantes: '16 Equipas',
-    descricao: 'O VCT 2026 Americas Stage 2 reúne as principais organizações da região na luta pela qualificação direta para o mundial. Preparem as vossas estratégias e dominem os mapas.',
-    equipasInscritas: [
-      { id: 1, nome: 'Shadow Gaming', tag: 'SHDW', status: 'Confirmado' },
-      { id: 2, nome: 'Apex Red', tag: 'APEX', status: 'Confirmado' },
-      { id: 3, nome: 'Nova Esports', tag: 'NOVA', status: 'Confirmado' },
-      { id: 4, nome: 'CyberTitans', tag: 'TTNS', status: 'Confirmado' },
-    ],
-    confrontos: [
-      { id: 1, fase: 'Quartas de Final', t1: 'Shadow Gaming', t2: 'Apex Red', placar: '2 - 1', status: 'Finalizado' },
-      { id: 2, fase: 'Quartas de Final', t1: 'Nova Esports', t2: 'CyberTitans', placar: '2 - 0', status: 'Finalizado' },
-      { id: 3, fase: 'Semifinal', t1: 'Shadow Gaming', t2: 'Nova Esports', placar: 'A definir', status: 'Próximo' },
-    ]
-  };
+    titulo: 'A carregar torneio...',
+    subtitulo: '',
+    jogo: '',
+    status: '',
+    premiacao: '',
+    dataInicio: '',
+    formato: 'Eliminatória',
+    participantes: '—',
+    descricao: 'A carregar detalhes do banco de dados...',
+    equipasInscritas: [],
+    confrontos: []
+  });
+
+  useEffect(() => {
+    async function fetchCampeonatoDetalhes() {
+      try {
+        const data = await api.tournaments.get(Number(campeonatoId));
+        if (data) {
+          setCampeonato({
+            id: data.id,
+            titulo: data.nome,
+            subtitulo: data.descricao || '',
+            jogo: data.jogo || '',
+            status: data.status || '',
+            premiacao: data.premiacao || '',
+            dataInicio: data.data_inicio || '',
+            formato: data.formato || 'Eliminatória',
+            participantes: `${data.team_ids.length}/${data.max_equipes} equipes`,
+            descricao: data.descricao || 'Detalhes do torneio.',
+            equipasInscritas: data.team_ids || [],
+            confrontos: []
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao buscar detalhes do campeonato:', error);
+      }
+    }
+
+    if (campeonatoId) {
+      fetchCampeonatoDetalhes();
+    }
+  }, [campeonatoId]);
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#0b0e14', color: '#f8fafc' }}>
       
-      {/* Background Fixo Global */}
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, pointerEvents: 'none' }}>
         <Background />
       </div>
 
       <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         
-        {/* NAVBAR SUPERIOR PÚBLICA */}
         <header style={{
           borderBottom: '1px solid #1e293b',
           backgroundColor: 'rgba(15, 20, 30, 0.9)',
@@ -92,7 +111,6 @@ export default function CampeonatoDetalhesPage() {
           </div>
         </header>
 
-        {/* CONTEÚDO PRINCIPAL */}
         <main style={{ padding: '48px 32px 64px 32px', maxWidth: '1200px', margin: '0 auto', width: '100%', flex: 1 }}>
           
           <div style={{ marginBottom: '24px' }}>
@@ -101,7 +119,6 @@ export default function CampeonatoDetalhesPage() {
             </Link>
           </div>
 
-          {/* HERO DO CAMPEONATO (ESTRUTURA DE VITRINE / ANÁLISE) */}
           <motion.div 
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -161,7 +178,6 @@ export default function CampeonatoDetalhesPage() {
             </div>
           </motion.div>
 
-          {/* ABAS DE NAVEGAÇÃO */}
           <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', borderBottom: '1px solid #1e293b', paddingBottom: '12px' }}>
             <button
               onClick={() => setAbaAtiva('geral')}
@@ -223,7 +239,7 @@ export default function CampeonatoDetalhesPage() {
               <div>
                 <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', marginBottom: '16px' }}>Chaves de Eliminatórias</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {campeonato.confrontos.map((confronto) => (
+                  {campeonato.confrontos.map((confronto: any) => (
                     <div key={confronto.id} style={{ backgroundColor: '#0b0e14', border: '1px solid #1e293b', borderRadius: '10px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#7c3aed', textTransform: 'uppercase' }}>{confronto.fase}</span>
@@ -244,7 +260,7 @@ export default function CampeonatoDetalhesPage() {
               <div>
                 <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', marginBottom: '16px' }}>Line-ups Confirmadas</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
-                  {campeonato.equipasInscritas.map((eq) => (
+                  {campeonato.equipasInscritas.map((eq: any) => (
                     <div key={eq.id} style={{ backgroundColor: '#0b0e14', border: '1px solid #1e293b', borderRadius: '10px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <Shield color="#c084fc" size={20} />
                       <div>

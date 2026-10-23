@@ -1,18 +1,40 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
 import { BrandMark } from '@/components/layout/BrandMark';
 import { Shield, ArrowRight } from 'lucide-react';
+import { api } from '@/services/api';
 
 export default function TimesPage() {
-  const timesMock = [
-    { id: 1, nome: 'Shadow Gaming', jogo: 'VALORANT', tag: 'SHDW', membros: 5, vitorias: 12 },
-    { id: 2, nome: 'Apex Red', jogo: 'Counter-Strike 2', tag: 'APEX', membros: 5, vitorias: 9 },
-    { id: 3, nome: 'Nova Esports', jogo: 'League of Legends', tag: 'NOVA', membros: 5, vitorias: 15 },
-  ];
+  const [times, setTimes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTimes() {
+      try {
+        const data = await api.teams.list();
+        if (Array.isArray(data)) {
+          setTimes(data.map((item: any) => ({
+            id: item.id,
+            nome: item.nome,
+            jogo: item.jogo || 'VALORANT',
+            tag: item.tag || 'SHDW',
+            membros: item.jogadores.length,
+            vitorias: item.vitorias || 0
+          })));
+        }
+      } catch (error) {
+        console.error('Erro ao buscar times:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchTimes();
+  }, []);
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#0b0e14', color: '#f8fafc' }}>
@@ -23,7 +45,6 @@ export default function TimesPage() {
 
       <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         
-        {/* NAVBAR SUPERIOR */}
         <header style={{
           borderBottom: '1px solid #1e293b',
           backgroundColor: 'rgba(15, 20, 30, 0.9)',
@@ -66,7 +87,6 @@ export default function TimesPage() {
           </div>
         </header>
 
-        {/* CONTEÚDO */}
         <main style={{ padding: '48px 32px 64px 32px', maxWidth: '1200px', margin: '0 auto', width: '100%', flex: 1 }}>
           
           <motion.div
@@ -86,64 +106,70 @@ export default function TimesPage() {
             </p>
           </motion.div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px', marginTop: '32px' }}>
-            {timesMock.map((time, indice) => (
-              <motion.div
-                key={time.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: indice * 0.08, duration: 0.3 }}
-                style={{
-                  backgroundColor: '#121824',
-                  border: '1px solid #1e293b',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
-                    <div style={{ width: '45px', height: '45px', backgroundColor: 'rgba(124, 58, 237, 0.15)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(124, 58, 237, 0.3)' }}>
-                      <Shield color="#c084fc" size={22} />
+          {loading ? (
+            <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>A carregar equipas do banco de dados...</div>
+          ) : times.length === 0 ? (
+            <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Nenhum time encontrado no banco de dados.</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px', marginTop: '32px' }}>
+              {times.map((time, indice) => (
+                <motion.div
+                  key={time.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: indice * 0.08, duration: 0.3 }}
+                  style={{
+                    backgroundColor: '#121824',
+                    border: '1px solid #1e293b',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+                      <div style={{ width: '45px', height: '45px', backgroundColor: 'rgba(124, 58, 237, 0.15)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(124, 58, 237, 0.3)' }}>
+                        <Shield color="#c084fc" size={22} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '17px', fontWeight: 'bold', color: '#fff' }}>{time.nome}</h3>
+                        <span style={{ fontSize: '12px', color: '#7c3aed', fontWeight: 600 }}>[{time.tag}] • {time.jogo}</span>
+                      </div>
                     </div>
-                    <div>
-                      <h3 style={{ fontSize: '17px', fontWeight: 'bold', color: '#fff' }}>{time.nome}</h3>
-                      <span style={{ fontSize: '12px', color: '#7c3aed', fontWeight: 600 }}>[{time.tag}] • {time.jogo}</span>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
+                      <span>Membros: <strong style={{ color: '#fff' }}>{time.membros}</strong></span>
+                      <span>Vitórias: <strong style={{ color: '#34d399' }}>{time.vitorias}</strong></span>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
-                    <span>Membros: <strong style={{ color: '#fff' }}>{time.membros}</strong></span>
-                    <span>Vitórias: <strong style={{ color: '#34d399' }}>{time.vitorias}</strong></span>
+                  <div style={{ borderTop: '1px solid #1e293b', paddingTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                    <Link
+                      href={`/times/${time.id}`}
+                      style={{
+                        backgroundColor: '#7c3aed',
+                        color: '#fff',
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        textDecoration: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)'
+                      }}
+                    >
+                      Ver Elenco e Estatísticas <ArrowRight size={14} />
+                    </Link>
                   </div>
-                </div>
-
-                <div style={{ borderTop: '1px solid #1e293b', paddingTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-                  <Link
-                    href={`/times/${time.id}`}
-                    style={{
-                      backgroundColor: '#7c3aed',
-                      color: '#fff',
-                      padding: '8px 16px',
-                      borderRadius: '10px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)'
-                    }}
-                  >
-                    Ver Elenco e Estatísticas <ArrowRight size={14} />
-                  </Link>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </main>
       </div>
     </div>

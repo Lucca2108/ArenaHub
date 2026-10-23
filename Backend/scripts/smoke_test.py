@@ -8,6 +8,7 @@ Cria dados de teste no banco configurado (Neon) e remove o campeonato e as equip
 O usuário de teste (e-mail com sufixo aleatório) permanece; não há rota para removê-lo.
 """
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -41,14 +42,17 @@ def step(n, texto):
 def main():
     global TOKEN
     sufixo = uuid.uuid4().hex[:8]
-    email, senha = f"smoke_{sufixo}@arenahub.gg", "senha-de-teste-123"
+    email = os.getenv("ARENAHUB_SMOKE_ADMIN_EMAIL")
+    senha = os.getenv("ARENAHUB_SMOKE_ADMIN_PASSWORD")
+    if not email or not senha:
+        raise SystemExit("Defina ARENAHUB_SMOKE_ADMIN_EMAIL e ARENAHUB_SMOKE_ADMIN_PASSWORD para executar o smoke administrativo.")
 
     _, saude = call("GET", "/health/db")
     # postgresql (Neon) em produção; sqlite em desenvolvimento local
     assert saude.get("status") == "ok" and saude.get("database") in {"postgresql", "sqlite"}, saude
     step(0, f"health/db -> {saude}")
 
-    call("POST", "/users", {"nome": "Smoke Test", "email": email, "senha": senha, "role": "organizador"})
+    # O smoke administrativo usa uma conta de organizador provisionada; o cadastro pÃºblico sÃ³ cria jogadores.
     step(1, f"usuário criado ({email})")
 
     _, login = call("POST", "/auth/login", {"email": email, "senha": senha})

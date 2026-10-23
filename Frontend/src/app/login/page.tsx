@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Background } from '@/components/layout/Background';
 import { BrandMark } from '@/components/layout/BrandMark';
+import { setSession } from '@/services/session';
 
 export default function UserLoginPage() {
   const router = useRouter();
@@ -13,15 +14,74 @@ export default function UserLoginPage() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [nome, setNome] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [confirmacao, setConfirmacao] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simula a autenticação gravando no localStorage do navegador
-    localStorage.setItem('arena_user_logged', 'true');
-    localStorage.setItem('arena_user_name', nome || email.split('@')[0] || 'Jogador');
-    
-    // Redireciona o utilizador para o Hub do Jogador após logar
-    router.push('/hub');
+    setError('');
+    setLoading(true);
+
+    try {
+      if (!isLogin && senha !== confirmacao) throw new Error('As senhas não coincidem.');
+      if (!isLogin && nickname.trim().length < 2) throw new Error('Informe um nickname válido.');
+      const endpoint = isLogin ? '/api/auth/login' : '/api/users';
+      
+      const payload = isLogin 
+        ? { email, senha }
+        : { 
+            nome: nome.trim(),
+            nickname: nickname.trim(),
+            email: email, 
+            senha: senha, 
+            role: 'jogador' 
+          };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        let detailMsg = 'Erro ao processar autenticação no servidor.';
+        
+        if (errData.detail) {
+          if (typeof errData.detail === 'string') {
+            detailMsg = errData.detail;
+          } else if (Array.isArray(errData.detail)) {
+            detailMsg = errData.detail.map((errItem: any) => errItem.msg || JSON.stringify(errItem)).join(', ');
+          } else if (typeof errData.detail === 'object') {
+            detailMsg = JSON.stringify(errData.detail);
+          }
+        }
+        throw new Error(detailMsg);
+      }
+
+      let dadosResposta = await response.json();
+      if (!isLogin) {
+        const loginResponse = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, senha }),
+        });
+        if (!loginResponse.ok) throw new Error('Conta criada, mas não foi possível iniciar a sessão.');
+        dadosResposta = await loginResponse.json();
+      }
+      if (dadosResposta.access_token && dadosResposta.user) {
+        setSession({ token: dadosResposta.access_token, user: dadosResposta.user });
+      }
+      
+      const destino = dadosResposta.user?.role === 'organizador' ? '/admin' : '/hub';
+      router.push(destino);
+    } catch (err: any) {
+      setError(err.message || 'Erro de ligação à API.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -95,6 +155,12 @@ export default function UserLoginPage() {
               </p>
             </div>
 
+            {error && (
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '20px' }}>
+                {typeof error === 'string' ? error : 'Ocorreu um erro no servidor.'}
+              </div>
+            )}
+
             <div style={{ display: 'flex', backgroundColor: '#0b0e14', padding: '4px', borderRadius: '12px', marginBottom: '28px', border: '1px solid #1e293b' }}>
               <button
                 type="button"
@@ -140,11 +206,11 @@ export default function UserLoginPage() {
               {!isLogin && (
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Nickname / Nome
+                    Nome completo
                   </label>
                   <input
                     type="text"
-                    placeholder="Seu nick nos jogos"
+                    placeholder="Seu nome completo"
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
                     style={{
@@ -162,12 +228,29 @@ export default function UserLoginPage() {
                 </div>
               )}
 
+              {!isLogin && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Nickname
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Seu nick nos jogos"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    style={{ width: '100%', backgroundColor: '#0b0e14', border: '1px solid #1e293b', borderRadius: '10px', padding: '12px 14px', fontSize: '14px', color: '#fff', outline: 'none' }}
+                  />
+                </div>
+              )}
+
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   E-mail
                 </label>
                 <input
                   type="email"
+                  required
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -185,12 +268,29 @@ export default function UserLoginPage() {
                 />
               </div>
 
+              {!isLogin && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Confirmar senha
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Repita sua senha"
+                    value={confirmacao}
+                    onChange={(e) => setConfirmacao(e.target.value)}
+                    style={{ width: '100%', backgroundColor: '#0b0e14', border: '1px solid #1e293b', borderRadius: '10px', padding: '12px 14px', fontSize: '14px', color: '#fff', outline: 'none' }}
+                  />
+                </div>
+              )}
+
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Palavra-passe
                 </label>
                 <input
                   type="password"
+                  required
                   placeholder="••••••••"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
@@ -210,6 +310,7 @@ export default function UserLoginPage() {
 
               <button
                 type="submit"
+                disabled={loading}
                 style={{
                   marginTop: '10px',
                   width: '100%',
@@ -225,7 +326,7 @@ export default function UserLoginPage() {
                   transition: 'background-color 0.2s'
                 }}
               >
-                {isLogin ? 'Entrar na Arena' : 'Concluir Registo'}
+                {loading ? 'A processar...' : isLogin ? 'Entrar na Arena' : 'Concluir Registo'}
               </button>
             </form>
           </motion.div>
